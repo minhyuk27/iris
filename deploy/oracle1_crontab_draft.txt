@@ -1,0 +1,48 @@
+# ⚠️ 초안 — 아직 oracle1에 설치 안 됨. 20:00 전환 작업 때 검토 후 설치할 것.
+# 배포 경로 가정: /home/ubuntu/iris (ivy가 /home/ubuntu/ivy인 것과 대칭)
+# Oracle1도 서버 자체는 UTC로 동작 가정(Odroid와 동일 관례 — 실제 timedatectl로 재확인 필요)
+# Odroid 크론(2026-08-19 기준, iris v2.10.1+v3.0.1)을 경로만 바꿔 그대로 이식.
+
+10 10 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v2_candidates >> logs/iris_v2_candidates.log 2>&1
+# = 매일 19:10 KST(월~금) — 다음거래일 후보 최대 50종목 미리 계산
+# ⚠️ ivy의 sync_to_iris(19:00)가 이 직전에 끝나 있어야 함 — 같은 서버로 옮기면
+#   sync_to_iris 자체가 불필요해질 수 있음(iris.db를 로컬에서 바로 읽으면 되므로) —
+#   이 경우 candidates가 daily_backtest(17:45) 이후 아무때나 돌아도 되므로 재검토 여지 있음
+
+29 0 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_entry >> logs/iris_v2_entry.log 2>&1
+31-59 0 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_monitor >> logs/iris_v2_monitor.log 2>&1
+0-59 1 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_monitor >> logs/iris_v2_monitor.log 2>&1
+0-59 2 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_monitor >> logs/iris_v2_monitor.log 2>&1
+0-59 3 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_monitor >> logs/iris_v2_monitor.log 2>&1
+0 4 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v2_force_close >> logs/iris_v2_force_close.log 2>&1
+5 4 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v2_daily_report >> logs/iris_v2_daily_report.log 2>&1
+6 4 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v2_real_trade_journal >> logs/iris_v2_real_trade_journal.log 2>&1
+7 4 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v2_extend_precise_candidates >> logs/iris_v2_backtest_journal.log 2>&1 && python3 -m scripts.iris_v2_backtest_journal >> logs/iris_v2_backtest_journal.log 2>&1 && python3 -m scripts.iris_v2_sync_journals_to_vault >> logs/iris_v2_backtest_journal.log 2>&1
+# ⚠️ sync_journals_to_vault는 obsidian-vault를 씀 — vault는 Odroid에 남기로 했으므로
+#   이 스크립트는 oracle1에서 못 돌림(volt 경로가 없음). 그대로 옮기면 에러남.
+#   대안: ①이 3개 잡만 계속 Odroid에 남겨서 iris.db를 SSH/SMB로 읽어오게 하거나
+#   ②vault 쓰기 부분만 떼어내 Odroid로 결과파일 scp 후 Odroid 쪽 별도 크론이 vault에 반영
+#   — 20:00 논의 필요, 초안 단계라 일단 원문 그대로 옮겨만 둠(실제로는 손봐야 함)
+
+# ── iris v3 ──
+0 0 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v3_exit >> logs/iris_v3_exit.log 2>&1
+5 0 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v3_candidates >> logs/iris_v3_candidates.log 2>&1
+10 0 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v3_daily_report >> logs/iris_v3_daily_report.log 2>&1
+11 0 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v3_real_trade_journal >> logs/iris_v3_real_trade_journal.log 2>&1 && python3 -m scripts.iris_v2_sync_journals_to_vault >> logs/iris_v3_real_trade_journal.log 2>&1
+# ⚠️ 위와 같은 vault 접근 문제
+0 6 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v3_entry >> logs/iris_v3_entry.log 2>&1
+35 6 * * 1-5 cd /home/ubuntu/iris && python3 -m bot.iris_v3_confirm_entry >> logs/iris_v3_confirm_entry.log 2>&1
+15 10 * * 1-5 cd /home/ubuntu/iris && python3 -m scripts.iris_v3_prefilter >> logs/iris_v3_prefilter.log 2>&1
+
+# ── 비상복구용 코드 백업(2026-08-19 원칙: "Oracle이 iris 관련 전부를
+# 정본으로 관리, NAS는 비상복구 백업만") ──
+# ivy 코드는 ivy/scripts/push_to_odroid.sh(일요일 05:30 KST)가 이미 자동으로
+# Project/ivy/에 미러링 중. iris 코드도 배포 완료 후 같은 스크립트(또는
+# 별도 sh)에 아래처럼 한 단계 추가할 것:
+#   rsync -avz --delete --exclude='__pycache__' --exclude='.env' --exclude='logs/' \
+#     --exclude='iris.db' -e "ssh $SSH_OPTS" \
+#     /home/ubuntu/iris/core /home/ubuntu/iris/bot /home/ubuntu/iris/scripts \
+#     /home/ubuntu/iris/strategy /home/ubuntu/iris/tests /home/ubuntu/iris/deploy \
+#     /home/ubuntu/iris/reports /home/ubuntu/iris/CLAUDE.md /home/ubuntu/iris/.env.template \
+#     "$ODROID_HOST:/media/nas/Project/iris/"
+# (DB 압축백업과 같은 스크립트/같은 시각에 묶어서 실행 — 별도 크론 불필요)

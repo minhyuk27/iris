@@ -1,0 +1,13 @@
+[Unit]
+Description=iris v1 Trading Bot (oneshot, daily gate-check + Friday rebalance)
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/odroid/iris
+ExecStart=python3 -m bot.iris_v1_bot
+StandardOutput=append:/home/odroid/iris/logs/iris_v1_bot.log
+StandardError=append:/home/odroid/iris/logs/iris_v1_bot.log
+
+[Install]
+WantedBy=default.target

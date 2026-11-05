@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.env
+.env.*
+!.env.example
+!.env.template
+*.db
+*.sqlite3
+logs/
+locks/
+data/
+*.log
+stellaria_research/
