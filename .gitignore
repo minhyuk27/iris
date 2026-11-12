@@ -14,3 +14,6 @@ locks/
 data/
 *.log
 stellaria_research/
+CLAUDE.md
+.claude/
+deploy/
